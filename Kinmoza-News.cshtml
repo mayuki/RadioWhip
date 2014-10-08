@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://www.kinmosa.com/news/",
+    "ニュース｜ＴＶアニメ「ハロー!!きんいろモザイク」公式サイト",
+    (content, cq) =>
+    {
+        return cq[".entry"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".entry_title").Text(),
+                Url = "http://www.kinmosa.com/news/#" + x.Attr("id"),
+                Content = x.Find(".entry_body").Html(),
+                Updated = DateTime.ParseExact(x.Find(".date").Text().Trim(), "yyyyM.d", null)
+            });
+    })

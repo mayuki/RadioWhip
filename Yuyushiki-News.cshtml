@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://www.yuyushiki.net/news/hp0001/list00010000.html",
+    "ニュース -TVアニメ「ゆゆ式」公式サイト-",
+    (content, cq) =>
+    {
+        return cq["#list_01 tr"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".title").Text(),
+                Url = x.Find("a").Attr("href"),
+                Content = (x.Find("a").Attr("href") == null) ? x.Find(".title").Text() : RadioWhip.FetchFullArticle(x.Find("a").Attr("href"), "#news_block_inner"),
+                Updated = DateTime.ParseExact(x.Find(".day").Text().Trim(), "yyyy/M/d", null)
+            });
+    })

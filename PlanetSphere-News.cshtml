@@ -1,0 +1,17 @@
+﻿@RadioWhip.Feedify(
+    "http://www.planet-sphere.jp/news.php",
+    "News | スフィア official website",
+    (content, cq) =>
+    {
+        RadioWhip.FixInPageUrls(cq, "http://www.planet-sphere.jp/");
+
+        return cq[".news"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".n_tit").Text(),
+                Url = "http://www.planet-sphere.jp/news.php#" + x.Find(".l_tit[id]").Attr("id"),
+                Content = x.Find(".l_txt").Html(),
+                Updated = DateTime.Now
+            });
+    })

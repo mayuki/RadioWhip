@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://www.petitmilady.com/news/",
+    "NEWS | petit milady | プチミレディ OFFICIAL WEB SITE",
+    (content, cq) =>
+    {
+        return cq[".news_block"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".title").Text(),
+                Url = "http://www.petitmilady.com/news/#" + x.Attr("id"),
+                Content = x.Find(".contents").Html(),
+                Updated = DateTime.ParseExact(x.Find(".pubdate").Text(), "yyyy.M.d", null)
+            });
+    })

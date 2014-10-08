@@ -1,0 +1,195 @@
+﻿@using System.IO.Compression
+@using System.Security.Cryptography
+@using System.Text
+@using System.Text.RegularExpressions
+@using CsQuery
+
+@functions
+{
+
+    public class Entry
+    {
+        public String Title { get; set; }
+        public String Url { get; set; }
+        public String Content { get; set; }
+        public String ContentType { get; set; }
+        public DateTime Updated { get; set; }
+
+        public Entry()
+        {
+            ContentType = "text/html";
+        }
+        
+        public Entry(String title, String url, String content, DateTime updated)
+        {
+            Title = title;
+            Url = url;
+            Content = content;
+            ContentType = "text/html";
+
+            Updated = updated;
+        }
+    }
+
+    /// <summary>
+    /// ページの全文を取得します。
+    /// </summary>
+    /// <param name="url"></param>
+    /// <param name="selector"></param>
+    /// <param name="encoding"></param>
+    /// <returns></returns>
+    public static String FetchFullArticle(String url, String selector, Encoding encoding = null)
+    {
+        return FetchFullArticle(url, (contents) => CQ.CreateDocument(contents)[selector].Html(), encoding);
+    }
+
+    /// <summary>
+    /// ページの全文を取得します。
+    /// </summary>
+    /// <param name="url"></param>
+    /// <param name="scraper"></param>
+    /// <param name="encoding"></param>
+    /// <returns></returns>
+    public static String FetchFullArticle(String url, Func<String, String> scraper, Encoding encoding = null)
+    {
+        var sha256 = SHA256.Create();
+        
+        var uri = new Uri(url);
+        var cacheDir = Path.Combine(Server.MapPath("~/App_Data/RadioWhip/Cache"), uri.Host);
+        var cachePath = Path.Combine(cacheDir, String.Concat(sha256.ComputeHash(Encoding.UTF8.GetBytes(url)).Select(x => x.ToString("x2"))));
+
+        if (!Directory.Exists(cacheDir))
+        {
+            Directory.CreateDirectory(cacheDir);
+        }
+        
+        var contents = "";
+
+        if (File.Exists(cachePath) && File.GetLastWriteTimeUtc(cachePath).AddDays(1) > DateTime.Today.ToUniversalTime())
+        {
+            using (var stream = File.OpenRead(cachePath))
+            using (var gzipStream = new GZipStream(stream, CompressionMode.Decompress))
+            using (var memoryStream = new MemoryStream())
+            {
+                gzipStream.CopyTo(memoryStream);
+                contents = Encoding.UTF8.GetString(memoryStream.ToArray());
+            }
+        }
+        else
+        {
+            var webClient = new WebClient();
+            webClient.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; rv:11.0) like Gecko";
+            webClient.Headers["Accept"] = "*/*";
+            var data = webClient.DownloadData(url);
+            if (encoding == null)
+            {
+                encoding = Encoding.GetEncoding(SimpleHelpers.FileEncoding.DetectFileEncoding(data, 0, data.Length), new EncoderReplacementFallback("?"), new DecoderReplacementFallback("?"));
+            }
+
+            contents = encoding.GetString(data);
+            
+            using (var stream = File.Create(cachePath))
+            using (var gzipStream = new GZipStream(stream, CompressionMode.Compress))
+            {
+                var tmp = encoding.GetBytes(contents);
+                gzipStream.Write(tmp, 0, tmp.Length);
+            }
+        }
+
+        return FixInPageUrls(scraper(contents), url);
+    }
+    
+    
+    /// <summary>
+    /// ページ内のa要素やimg要素のURLを修正します。
+    /// </summary>
+    /// <param name="cq"></param>
+    /// <param name="baseUrl"></param>
+    public static CQ FixInPageUrls(CQ cq, String baseUrl)
+    {
+        baseUrl = Regex.Replace(baseUrl, "^(https?://[^/]+)(.*)/.*", "$1$2/");
+        
+        cq["img[src]"].Where(x => !x["src"].StartsWith("http")).Select(x => x["src"] = FixUrl(baseUrl, x["src"])).ToArray(); // ForEachガワリヨクナイネ
+        cq["a[href]"].Where(x => !x["href"].StartsWith("http")).Select(x => x["href"] = FixUrl(baseUrl, x["href"])).ToArray();
+
+        return cq;
+    }
+    /// <summary>
+    /// ページ内のa要素やimg要素のURLを修正します。
+    /// </summary>
+    /// <param name="cq"></param>
+    /// <param name="baseUrl"></param>
+    public static String FixInPageUrls(String content, String baseUrl)
+    {
+        var cq = CQ.CreateDocument(content);
+        FixInPageUrls(cq, baseUrl);
+
+        return cq.Html();
+    }
+    /// <summary>
+    /// ページ内のa要素やimg要素のURLを修正します。
+    /// </summary>
+    /// <param name="cq"></param>
+    /// <param name="baseUrl"></param>
+    public static Entry FixInPageUrls(Entry entry, String baseUrl)
+    {
+        entry.Content = FixInPageUrls(entry.Content, baseUrl);
+        return entry;
+    }
+
+    private static String FixUrl(String baseUrl, String path)
+    {
+        return (path.StartsWith("/") ? new Uri(baseUrl).GetLeftPart(UriPartial.Authority) : baseUrl) + path;
+    }
+}
+
+@helper Feedify(String url, String title, Func<String, CsQuery.CQ, IEnumerable<Entry>> scrapar, Encoding encoding = null, String description = null)
+{
+    var webClient = new WebClient();
+    webClient.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 6.3; WOW64; Trident/7.0; rv:11.0) like Gecko";
+    webClient.Headers["Accept"] = "*/*";
+    var data = webClient.DownloadData(url);
+
+    if (encoding == null)
+    {
+        encoding = Encoding.GetEncoding(SimpleHelpers.FileEncoding.DetectFileEncoding(data, 0, data.Length), new EncoderReplacementFallback("?"), new DecoderReplacementFallback("?"));
+    }
+
+    var content = encoding.GetString(data);
+    var entries = scrapar(content, FixInPageUrls(CQ.CreateDocument(content), url)).ToArray();
+    
+    @OutputFeed(url, title, description, entries)
+}
+
+@helper OutputFeed(String url, String title, String description, Entry[] entries)
+{
+    Response.ClearContent();
+    Response.ContentType = "application/rss+xml";
+    if (!Request.IsLocal)
+    {
+        Response.OutputCache(60 * 5); // 5分
+    }
+
+    <rss version="2.0">
+        <channel>
+            <title>@title</title>
+            @Html.Raw("<link>")@url@Html.Raw("</link>")
+            <description>@description</description>
+
+            @foreach (var entry in entries)
+            {
+                <item>
+                    <title>@entry.Title</title>
+                    <pubDate>@entry.Updated.ToUniversalTime().ToString("s")</pubDate>
+                    @Html.Raw("<link>")@entry.Url@Html.Raw("</link>")
+                    <description>
+                        <![CDATA[
+                        @Html.Raw(entry.Content)
+                        ]]>
+                    </description>
+                </item>
+            }
+
+        </channel>
+    </rss>
+}

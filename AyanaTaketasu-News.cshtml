@@ -1,0 +1,16 @@
+﻿@RadioWhip.Feedify(
+    "http://ayanataketatsu.jp/news.html",
+    "「竹達彩奈」スペシャルサイト",
+    (content, cq) =>
+    {
+        return cq["div[id='news']"]
+            .Select(x => x.Cq())
+            .Where(x => !String.IsNullOrWhiteSpace(x.Find(".day").Text()) && !String.IsNullOrWhiteSpace(x.Find(".txt").Text()))
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".txt").Text(),
+                Url = "http://ayanataketatsu.jp/news.html#" + x[0].PreviousElementSibling["name"],
+                Content = x.Find("[id='news_flame']").Html(),
+                Updated = DateTime.ParseExact(x.Find(".day").Text(), "yyyy.M.d", null)
+            });
+    })
