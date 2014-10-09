@@ -8,7 +8,7 @@
             .Select(x => new RadioWhip.Entry
             {
                 Title = System.Text.RegularExpressions.Regex.Replace(x.Find("h3").Text(), @"^\d\.\d+\.\d+", "").Trim(),
-                Url = "http://www.knightsofsidonia.com/news/" + x.Attr("id"),
+                Url = "http://www.knightsofsidonia.com/news/#" + x.Attr("id"),
                 Content = x.Find(".text").Html(),
                 Updated = DateTime.ParseExact(x.Find(".newsdate").Text().Trim(), "yyyy.M.d", null)
             });
