@@ -1,0 +1,14 @@
+﻿@if (!Request.Url.Query.StartsWith("?http://") && !Request.Url.Query.StartsWith("?https://"))
+{
+    var url = new UriBuilder(Request.Url);
+    url.Query = "";
+    @Html.Raw("<!DOCTYPE html>")
+    <title>Apply Feed Filter - RadioWhip</title>
+    <style>body { font-family: sans-serif; }</style>
+    <h1>Apply Feed Filter</h1>
+    <p>Usage: @url.ToString()?http://www.example.com/path/to/feed</p>
+}
+else
+{
+    @RadioWhip.ApplyFeedFilter(Request.Url.Query.TrimStart('?'))
+}

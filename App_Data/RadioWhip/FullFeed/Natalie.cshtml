@@ -1,0 +1,9 @@
+﻿@RadioWhip.RegisterHandler(
+    (entryUrl, feedUrl) => entryUrl.StartsWith("http://natalie.mu/"),
+    (item, content, cq) =>
+    {
+        var article = cq[".NA_articleUnit"];
+        article.Find("header").Remove();
+        article.Find(".NA_articleBody").NextAll().Remove();
+        return article.Html();
+    })

@@ -1,0 +1,4 @@
+﻿@RadioWhip.RegisterHandler(
+    (entryUrl, feedUrl) => entryUrl.StartsWith("http://www.famitsu.com/"),
+    (item, content, cq) => cq["#articleArea"].Html()
+)

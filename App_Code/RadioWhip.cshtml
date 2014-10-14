@@ -1,7 +1,11 @@
-﻿@using System.IO.Compression
+﻿@using System.Collections.Concurrent
+@using System.IO.Compression
 @using System.Security.Cryptography
+@using System.ServiceModel.Syndication
 @using System.Text
 @using System.Text.RegularExpressions
+@using System.Threading
+@using System.Xml
 @using CsQuery
 
 @functions
@@ -40,7 +44,7 @@
     /// <returns></returns>
     public static String FetchFullArticle(String url, String selector, Encoding encoding = null)
     {
-        return FetchFullArticle(url, (contents) => CQ.CreateDocument(contents)[selector].Html(), encoding);
+        return FetchFullArticle(url, (contents, cq) => cq[selector].Html(), encoding);
     }
 
     /// <summary>
@@ -50,7 +54,7 @@
     /// <param name="scraper"></param>
     /// <param name="encoding"></param>
     /// <returns></returns>
-    public static String FetchFullArticle(String url, Func<String, String> scraper, Encoding encoding = null)
+    public static String FetchFullArticle(String url, Func<String, CsQuery.CQ, String> scraper, Encoding encoding = null)
     {
         var sha256 = SHA256.Create();
         
@@ -94,9 +98,11 @@
                 var tmp = encoding.GetBytes(contents);
                 gzipStream.Write(tmp, 0, tmp.Length);
             }
+            
+            Thread.Sleep(1000); // 連続アクセスはあぶない
         }
 
-        return FixInPageUrls(scraper(contents), url);
+        return FixInPageUrls(scraper(contents, CQ.CreateDocument(contents)), url);
     }
     
     
@@ -121,10 +127,10 @@
     /// <param name="baseUrl"></param>
     public static String FixInPageUrls(String content, String baseUrl)
     {
-        var cq = CQ.CreateDocument(content);
+        var cq = CQ.CreateFragment(content);
         FixInPageUrls(cq, baseUrl);
 
-        return cq.Html();
+        return String.Concat(cq.Selection.Select(x => x.NodeType == NodeType.ELEMENT_NODE ? x.OuterHTML : x.ToString()));
     }
     /// <summary>
     /// ページ内のa要素やimg要素のURLを修正します。
@@ -143,6 +149,143 @@
     }
 }
 
+@functions
+{
+    /// <summary>
+    /// フィルターを登録します
+    /// </summary>
+    /// <param name="filter">フィルターの処理。nullを返すとそのエントリーは削除されます。第一引数はエントリーのアイテム、第二引数はエントリーページのURL、第三引数はフィードのURL。</param>
+    /// <returns></returns>
+}
+@helper RegisterFilter(Func<SyndicationItem, String, String, SyndicationItem> filter)
+{
+    var model = Model as List<Func<SyndicationItem, String, String, SyndicationItem>>;
+    model.Add(filter);
+}
+
+@functions
+{
+    /// <summary>
+    /// FullFeedのハンドラを登録します
+    /// </summary>
+    /// <param name="matcher">FullFeedの処理対象かどうかをマッチテストする処理。trueを返した場合にhandlerが呼び出されます。</param>
+    /// <param name="handler">フィードの本文を返す処理。第一引数はエントリーのアイテム、第二引数はエントリーページのHTML、第三引数はCsQueryのインスタンス。</param>
+    /// <returns></returns>
+}
+@helper RegisterHandler(Func<String, String, Boolean> matcher, Func<SyndicationItem, String, CsQuery.CQ, String> handler)
+{
+    var model = Model as Dictionary<Func<String, String, Boolean>, Func<SyndicationItem, String, CsQuery.CQ, String>>;
+    model[matcher] = handler;
+}
+
+@functions
+{
+    /// <summary>
+    /// 指定したURLのフィードにフィルタを適用して出力します
+    /// </summary>
+    /// <param name="url"></param>
+    /// <returns></returns>
+}
+@helper ApplyFeedFilter(String url)
+{
+    var filterTemplateDir = Server.MapPath("~/App_Data/RadioWhip/Filter/");
+    var filters = new List<Func<SyndicationItem, String, String, SyndicationItem>>();
+    Directory.EnumerateFiles(filterTemplateDir, "*.cshtml", SearchOption.AllDirectories).Select(x => RadioWhip.CurrentPage.RenderPage(x.Replace(filterTemplateDir, "~/App_Data/RadioWhip/Filter/"), filters).ToHtmlString()).ToArray();
+
+    SyndicationFeed feed = null;
+    try
+    {
+        feed = SyndicationFeed.Load(XmlReader.Create(url));
+    }
+    catch (WebException webE)
+    {
+        var webResponse = webE.Response as HttpWebResponse;
+        if (webResponse == null)
+        {
+            throw;
+        }
+
+        var statusCode = (Int32) webResponse.StatusCode;
+        if (statusCode >= 400 && statusCode <= 599)
+        {
+            Response.ClearHeaders();
+            Response.ClearContent();
+            Response.StatusCode = statusCode;
+            Response.StatusDescription = webResponse.StatusDescription;
+
+            Response.ContentType = "text/plain";
+            Response.Write(String.Format("{0}: {1}", statusCode, webResponse.StatusDescription));
+            return;
+        }
+
+        // TODO: WebClientだとたぶんここには来ないのであとで直す
+        if (statusCode >= 300 && statusCode <= 399)
+        {
+            Response.Redirect(webResponse.ResponseUri.ToString());
+            return;
+        }
+        throw;
+    }
+
+    feed.Items = feed.Items.Select(item =>
+                                   {
+                                       // LastUpdatedTimeが0001-01-01だと現在の時刻で吐き出されてしまう
+                                       if (item.LastUpdatedTime == DateTimeOffset.MinValue)
+                                       {
+                                           item.LastUpdatedTime = item.PublishDate;
+                                       }
+
+                                       // URLをとってきて
+                                       var entryUri = item.Links.Where(x => x.RelationshipType == "alternate").Select(x => x.Uri.ToString()).FirstOrDefault();
+                                       if (entryUri == null)
+                                       {
+                                           return item;
+                                       }
+                                       
+                                       // 処理する
+                                       foreach (var filter in filters)
+                                       {
+                                           try
+                                           {
+                                               // フィルターが null を返えすとフィルターになる
+                                               item = filter(item, entryUri, url);
+                                           }
+                                           catch
+                                           {
+                                           }
+                                       }
+
+                                       return item;
+                                   })
+                                   .Where(x => x != null)
+                                   .ToArray();
+    var sbFeed = new StringBuilder();
+    var xmlWriter = XmlWriter.Create(sbFeed, new XmlWriterSettings() { OmitXmlDeclaration = true });
+    feed.SaveAsAtom10(xmlWriter);
+    xmlWriter.Flush();
+
+    Response.ClearContent();
+    Response.ContentType = "application/atom+xml";
+    if (!Request.IsLocal)
+    {
+        Response.OutputCache(60 * 5); // 5分
+    }
+
+    @Html.Raw(sbFeed.ToString())
+}
+
+@functions
+{
+    /// <summary>
+    /// 指定したURLから内容を取り出してフィードを生成します。
+    /// </summary>
+    /// <param name="url">取得対象のURL</param>
+    /// <param name="title">フィードのタイトル</param>
+    /// <param name="scrapar">内容を取り出すための処理</param>
+    /// <param name="encoding">取得したデータのエンコーディング(未指定時は自動判別)</param>
+    /// <param name="description">フィードのdescription</param>
+    /// <returns></returns>
+}
 @helper Feedify(String url, String title, Func<String, CsQuery.CQ, IEnumerable<Entry>> scrapar, Encoding encoding = null, String description = null)
 {
     var webClient = new WebClient();

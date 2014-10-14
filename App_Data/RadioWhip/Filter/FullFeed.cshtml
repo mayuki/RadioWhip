@@ -1,0 +1,22 @@
+﻿@using System.ServiceModel.Syndication
+@RadioWhip.RegisterFilter((item, entryUrl, feedUrl) =>
+                          {
+                              var fullFeedHandlerTemplatesDir = Server.MapPath("~/App_Data/RadioWhip/FullFeed/");
+                              var handlers = new Dictionary<Func<String, String, Boolean>, Func<SyndicationItem, String, CsQuery.CQ, String>>();
+                              Directory.EnumerateFiles(fullFeedHandlerTemplatesDir, "*.cshtml", SearchOption.AllDirectories)
+                                  .Select(x => x.Replace(fullFeedHandlerTemplatesDir, "~/App_Data/RadioWhip/FullFeed/"))
+                                  .Select(x => RadioWhip.CurrentPage.RenderPage(x, handlers).ToHtmlString())
+                                  .ToArray();
+
+                              foreach (var handler in handlers.Where(x => x.Key(entryUrl, feedUrl)).Select(x => x.Value))
+                              {
+                                  var result = SyndicationContent.CreateHtmlContent(RadioWhip.FetchFullArticle(entryUrl, (content, cq) => handler(item, content, cq)));
+                                  if (result == null)
+                                  {
+                                      return null;
+                                  }
+                                  item.Content = result;
+                              }
+
+                              return item;
+                          })

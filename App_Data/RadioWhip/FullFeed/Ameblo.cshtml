@@ -1,0 +1,4 @@
+﻿@RadioWhip.RegisterHandler(
+    (entryUrl, feedUrl) => entryUrl.StartsWith("http://ameblo.jp/"),
+    (item, content, cq) => cq[".subContentsInner"].Html()
+)
