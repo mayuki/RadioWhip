@@ -36,6 +36,17 @@
     }
 
     /// <summary>
+    /// 文字列からSHA256ハッシュを生成します。
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    public static String GenerateHash(String value)
+    {
+        var sha256 = SHA256.Create();
+        return String.Concat(sha256.ComputeHash(Encoding.UTF8.GetBytes(value)).Select(x => x.ToString("x2")));
+    }
+
+    /// <summary>
     /// ページの全文を取得します。
     /// </summary>
     /// <param name="url"></param>
@@ -56,11 +67,9 @@
     /// <returns></returns>
     public static String FetchFullArticle(String url, Func<String, CsQuery.CQ, String> scraper, Encoding encoding = null)
     {
-        var sha256 = SHA256.Create();
-        
         var uri = new Uri(url);
         var cacheDir = Path.Combine(Server.MapPath("~/App_Data/RadioWhip/Cache"), uri.Host);
-        var cachePath = Path.Combine(cacheDir, String.Concat(sha256.ComputeHash(Encoding.UTF8.GetBytes(url)).Select(x => x.ToString("x2"))));
+        var cachePath = Path.Combine(cacheDir, GenerateHash(url));
 
         if (!Directory.Exists(cacheDir))
         {
@@ -227,6 +236,11 @@
         throw;
     }
 
+    if (feed.Id == null)
+    {
+        feed.Id = url;
+    }
+    
     feed.Items = feed.Items.Select(item =>
                                    {
                                        // LastUpdatedTimeが0001-01-01だと現在の時刻で吐き出されてしまう
@@ -241,7 +255,13 @@
                                        {
                                            return item;
                                        }
-                                       
+
+                                       // idがnullだと謎のIDが吐かれてしまう
+                                       if (item.Id == null)
+                                       {
+                                           item.Id = entryUri;
+                                       }
+
                                        // 処理する
                                        foreach (var filter in filters)
                                        {
