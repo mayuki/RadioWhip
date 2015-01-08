@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://kancolle-anime.jp/news/",
+    "最新情報 ニュースアニメ「艦隊これくしょん -艦これ-」公式サイト",
+    (content, cq) =>
+    {
+        return cq[".news-cts"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".newsttl").Text(),
+                Url = x.Find(".newsttl a").Attr("href"),
+                Content = x.Html(),
+                Updated = DateTime.ParseExact(x.Find(".date").Text().Trim(), "yyyy/M/d", null)
+            });
+    })
