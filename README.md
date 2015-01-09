@@ -24,11 +24,11 @@ Azure Websitesで利用するのであれば[![Deploy to Azure](http://azuredepl
 -----------------
 フィードのフィルタはApp_Data/RadioWhip/Filter以下にcshtmlを作ることで実装できます。(後で書く)
 ```cshtml
-@* RegisterFilterでフィルターを登録する。nullを返すとフィルターされます。 *@
 @RadioWhip.RegisterFilter(
     (item, entryUrl, feedUrl) => entryUrl.StartsWith("http://www.example.com/") ? null : item
 )
 ```
+RegisterFilterでフィルターを登録します。nullを返すとフィルターされます。
 
 全文を差し込む処理の詳細は App_Data/RadioWhip/FullFeed に置くことで定義できます。
 ```cshtml
@@ -37,3 +37,4 @@ Azure Websitesで利用するのであれば[![Deploy to Azure](http://azuredepl
     (item, content, cq) => cq[".subContentsInner"].Html()
 )
 ```
+RegisterHandlerで対象となるURLかどうかのチェックハンドラ(第一引数)と内容を返すハンドラ(第二引数)を登録します。
