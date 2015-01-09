@@ -22,7 +22,13 @@ Azure Websitesで利用するのであれば[![Deploy to Azure](http://azuredepl
 
 フィードのフィルタ
 -----------------
-フィードのフィルタはApp_Data/RadioWhip/Filter以下にcshtmlを作ることで実装できます。(後で書く)
+フィードのフィルタは FeedFilter のクエリパラメータにURLを渡して実行します。
+```
+http://www.example.com/FeedFilter?http://feedblog.ameba.jp/rss/ameblo/toyosakiaki-blog/rss20.xml
+```
+
+### フィルターを定義する
+フィードのフィルタは自分で増やすことができます。App_Data/RadioWhip/Filter以下にcshtmlを作ることで定義・実装できます。(後で書く)
 ```cshtml
 @RadioWhip.RegisterFilter(
     (item, entryUrl, feedUrl) => entryUrl.StartsWith("http://www.example.com/") ? null : item
@@ -30,6 +36,7 @@ Azure Websitesで利用するのであれば[![Deploy to Azure](http://azuredepl
 ```
 RegisterFilterでフィルターを登録します。nullを返すとフィルターされます。
 
+### 全文を差し込む処理を定義する
 全文を差し込む処理の詳細は App_Data/RadioWhip/FullFeed に置くことで定義できます。
 ```cshtml
 @RadioWhip.RegisterHandler(
