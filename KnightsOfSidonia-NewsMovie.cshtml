@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://www.knightsofsidonia.com/news_movie.php",
+    "「シドニアの騎士」公式サイト NEWS MOVIE",
+    (content, cq) =>
+    {
+        return cq[".newsBox"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = System.Text.RegularExpressions.Regex.Replace(x.Find("h3").Text(), @"^\d\.\d+\.\d+", "").Trim(),
+                Url = "http://www.knightsofsidonia.com/news_tv.php/#" + x.Attr("id"),
+                Content = x.Find(".txt").Html(),
+                Updated = DateTime.ParseExact(x.Find(".date").Text().Trim(), "yyyy.M.d", null)
+            });
+    })

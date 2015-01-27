@@ -319,8 +319,41 @@
     }
 
     var content = encoding.GetString(data);
-    var entries = scrapar(content, FixInPageUrls(CQ.CreateDocument(content), url)).ToArray();
+
+    RadioWhip.Entry[] entries;
     
+    try
+    {
+        entries = scrapar(content, FixInPageUrls(CQ.CreateDocument(content), url)).ToArray();
+    }
+    catch (Exception ex)
+    {
+        entries = new []
+        {
+            new RadioWhip.Entry
+            {
+                Title = "エントリーを取得中にエラーが発生しました",
+                Url = "#CantHandleEntryPage",
+                Content = "エントリーを取得中にエラーが発生しました。スクレイピングに失敗している可能性があります。<br />例外: <pre>" + (Html.Encode(ex.ToString())) + "</pre>",
+                Updated = DateTime.Now
+            }
+        };       
+    }
+    
+    if (!entries.Any())
+    {
+        entries = new []
+        {
+            new RadioWhip.Entry
+            {
+                Title = "エントリーが一つも存在しません",
+                Url = "#UnexpectedEmptyFeed",
+                Content = "エントリーを取得できませんでした。スクレイピングに失敗している可能性があります。",
+                Updated = DateTime.Now
+            }
+        };
+    }
+
     @OutputFeed(url, title, description, entries)
 }
 
