@@ -3,7 +3,7 @@
     "ニュース｜ＴＶアニメ「ハロー!!きんいろモザイク」公式サイト",
     (content, cq) =>
     {
-        return cq[".frame-inner > .entry"]
+        return cq[".frame-inner #EntryList > .entry"]
             .Select(x => x.Cq())
             .Select(x => new RadioWhip.Entry
             {
