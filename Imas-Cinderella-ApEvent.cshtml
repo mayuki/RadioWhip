@@ -1,0 +1,39 @@
+﻿@using System.Text
+@using CsQuery
+@RadioWhip.Feedify(
+    "http://columbia.jp/idolmaster/cinderellaapevent/",
+    "THE IDOLM@STER CINDERELLA GIRLS ANIMATION PROJECTシリーズCD発売記念イベント",
+    (content, cq) =>
+    {
+        return cq["#newsContent h3"]
+            .Select(x => x.Cq())
+            .Select(x =>
+            {
+                var id = "";
+                var idE = x.PrevUntil("[id],h3").Prev();
+                if (idE.Count() != 0 && idE[0].NodeName != "H3")
+                {
+                    id = idE.Attr("id");
+                }
+                var lastE = x.NextUntil("h3").Last()[0];
+                var node = x[0];
+                var html = new StringBuilder();
+                while (node.NextSibling != null)
+                {
+                    html.Append(node.NodeType == NodeType.ELEMENT_NODE ? node.OuterHTML : node.NodeValue);
+
+                    if (node.NextSibling == lastE)
+                    {
+                        break;
+                    }
+                    node = node.NextSibling;
+                }
+                
+                return new RadioWhip.Entry
+                {
+                    Title = x.Text(),
+                    Url = "http://columbia.jp/idolmaster/cinderellaapevent/#" + id,
+                    Content = html.ToString(),
+                };
+            });
+    })
