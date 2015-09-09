@@ -1,0 +1,15 @@
+﻿@RadioWhip.Feedify(
+    "http://suzakinishi.tv/news/index.html",
+    "NEWS -TVアニメ「洲崎西 THE ANIMATION」公式サイト-",
+    (content, cq) =>
+    {
+        return cq[".news_area"]
+            .Select(x => x.Cq())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = x.Find(".ti_n").Text(),
+                Url = "http://suzakinishi.tv/news/index.html#" + x.Find(".news_user_contents").Attr("id"),
+                Content = x.Find(".ti_n + div").Html(),
+                Updated = DateTime.ParseExact(x.Find(".newsdate").Text().Trim(), "yyyy/M/d", null)
+            });
+    })

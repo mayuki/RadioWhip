@@ -1,0 +1,18 @@
+﻿@using System.Text.RegularExpressions
+@RadioWhip.Feedify(
+    "http://seaside-c.jp/program/suzakinishi/index.htm",
+    "洲崎西　番組公式HP",
+    (content, cq) =>
+    {
+        return cq[".example1"]
+            .First()
+            .Select(x => x.Cq())
+            .SelectMany(x => Regex.Matches(x.Text(), @"(\d{4}\.\d{2}\.\d{2})\s*(.*?)(?:(?=\d{4}\.\d{2}\.\d{2})|$)", RegexOptions.Singleline).OfType<Match>())
+            .Select(x => new RadioWhip.Entry
+            {
+                Title = Regex.Replace(x.Groups[2].Value, "<[^>]*>", "").Replace("&amp;", "&"),
+                Url = "http://seaside-c.jp/program/suzakinishi/index.htm#" + x.Groups[1].Value,
+                Content = x.Groups[2].Value,
+                Updated = DateTime.ParseExact(x.Groups[1].Value.Trim(), "yyyy.M.d", null)
+            });
+    })
