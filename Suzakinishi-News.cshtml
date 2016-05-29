@@ -4,7 +4,7 @@
     "洲崎西　番組公式HP",
     (content, cq) =>
     {
-        return cq[".example1"]
+        return cq[".news_box"]
             .First()
             .Select(x => x.Cq())
             .SelectMany(x => Regex.Matches(x.Text(), @"(\d{4}\.\d{2}\.\d{2})\s*(.*?)(?:(?=\d{4}\.\d{2}\.\d{2})|$)", RegexOptions.Singleline).OfType<Match>())
